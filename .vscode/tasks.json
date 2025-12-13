@@ -1,0 +1,40 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build simulator",
+            "type": "shell",
+            "command": "g++",
+            "args": [
+                "-g", 
+                "src/simulator.cpp",
+                "-o", 
+                "build/simulator.exe",
+                "-I", "SDL-3/include", // Include SDL3 headers
+                "-L", "SDL-3/lib",      // Link SDL3 libraries
+                "-lSDL3", "-lSDL3main", "-lSDL3_ttf", // Link SDL3 main libraries
+                "-lws2_32",             // Link Windows Socket Library
+                "-std=c++17"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Build the SDL3 Simulator with TCP support"
+        },
+        {
+            "label": "build traffic generator",
+            "type": "shell",
+            "command": "g++",
+            "args": [
+                "-g", 
+                "src/trafficgenerator.cpp",
+                "-o", 
+                "build/trafficgenerator.exe",
+                "-lws2_32" // Link Windows Socket Library
+            ],
+            "group": "build",
+            "detail": "Build the TCP Traffic Generator"
+        }
+    ]
+}
