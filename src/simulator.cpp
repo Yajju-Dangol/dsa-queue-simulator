@@ -53,6 +53,13 @@ void refreshLight(SDL_Renderer *renderer);
 void drawLightForB(SDL_Renderer *renderer, bool isRed);
 void drawArrow(SDL_Renderer *renderer, int x1, int y1, int x2, int y2, int x3, int y3);
 
+void drawLightForA(SDL_Renderer *renderer, bool isRed);
+void drawLightForB(SDL_Renderer *renderer, bool isRed);
+void drawLightForC(SDL_Renderer *renderer, bool isRed);
+void drawLightForD(SDL_Renderer *renderer, bool isRed);
+
+void drawTrafficLight(SDL_Renderer *renderer, float x, float y, bool isRed, bool horizontal);
+
 // Thread functions
 void socketReceiverThread();
 void lightControlThread();
@@ -316,36 +323,27 @@ void drawRoadsAndLane(SDL_Renderer *renderer, TTF_Font *font)
   float road_half = (float)ROAD_WIDTH / 2.0f;
 
   SDL_SetRenderDrawColor(renderer, 35, 35, 35, 255);
-
-  SDL_FRect verticalRoad = {center - road_half, 0.0f, (float)ROAD_WIDTH, (float)WINDOW_HEIGHT};
-  SDL_RenderFillRect(renderer, &verticalRoad);
-
-  SDL_FRect horizontalRoad = {0.0f, center - road_half, (float)WINDOW_WIDTH, (float)ROAD_WIDTH};
-  SDL_RenderFillRect(renderer, &horizontalRoad);
+  SDL_FRect vRoad = {center - road_half, 0.0f, (float)ROAD_WIDTH, (float)WINDOW_HEIGHT};
+  SDL_RenderFillRect(renderer, &vRoad);
+  SDL_FRect hRoad = {0.0f, center - road_half, (float)WINDOW_WIDTH, (float)ROAD_WIDTH};
+  SDL_RenderFillRect(renderer, &hRoad);
 
   SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-
-  float dashWidth = 4.0f;
-  float dashHeight = 20.0f;
+  float dashW = 4.0f;
+  float dashH = 20.0f;
   float gap = 20.0f;
-
-  for (float y = 0; y < WINDOW_HEIGHT; y += (dashHeight + gap))
+  for (float y = 0; y < WINDOW_HEIGHT; y += (dashH + gap))
   {
-
     if (y > center - road_half && y < center + road_half)
       continue;
-
-    SDL_FRect dash = {center - (dashWidth / 2.0f), y, dashWidth, dashHeight};
+    SDL_FRect dash = {center - (dashW / 2.0f), y, dashW, dashH};
     SDL_RenderFillRect(renderer, &dash);
   }
-
-  for (float x = 0; x < WINDOW_WIDTH; x += (dashHeight + gap))
+  for (float x = 0; x < WINDOW_WIDTH; x += (dashH + gap))
   {
-
     if (x > center - road_half && x < center + road_half)
       continue;
-
-    SDL_FRect dash = {x, center - (dashWidth / 2.0f), dashHeight, dashWidth};
+    SDL_FRect dash = {x, center - (dashW / 2.0f), dashH, dashW};
     SDL_RenderFillRect(renderer, &dash);
   }
 
@@ -354,7 +352,11 @@ void drawRoadsAndLane(SDL_Renderer *renderer, TTF_Font *font)
   displayText(renderer, font, "D", 10, (int)center + 10);
   displayText(renderer, font, "C", WINDOW_WIDTH - 40, (int)center + 10);
 
-  drawLightForB(renderer, nextLight != 2);
+  int lState = nextLight.load();
+  drawLightForA(renderer, lState != 1);
+  drawLightForC(renderer, lState != 1);
+  drawLightForB(renderer, lState != 2);
+  drawLightForD(renderer, lState != 2);
 }
 
 void refreshLight(SDL_Renderer *renderer)
@@ -362,10 +364,8 @@ void refreshLight(SDL_Renderer *renderer)
   if (nextLight.load() == currentLight.load())
     return;
 
-  drawLightForB(renderer, nextLight != 2);
-
   currentLight = nextLight.load();
-  std::cout << "Light of queue updated to " << currentLight.load() << std::endl;
+  std::cout << "Light state updated to " << currentLight.load() << std::endl;
 }
 
 void drawArrow(SDL_Renderer *renderer, int x1, int y1, int x2, int y2, int x3, int y3)
@@ -376,14 +376,33 @@ void drawArrow(SDL_Renderer *renderer, int x1, int y1, int x2, int y2, int x3, i
   SDL_RenderLine(renderer, (float)x3, (float)y3, (float)x1, (float)y1);
 }
 
-void drawTrafficLight(SDL_Renderer *renderer, float x, float y, bool isRed, bool horizontal);
-void drawLightForB(SDL_Renderer *renderer, bool isRed);
+void drawLightForA(SDL_Renderer *renderer, bool isRed)
+{
 
+  drawTrafficLight(renderer, 380.0f, 355.0f, isRed, true);
+}
+
+void drawLightForB(SDL_Renderer *renderer, bool isRed)
+{
+
+  drawTrafficLight(renderer, 375.0f, 450.0f, isRed, true);
+}
+
+void drawLightForC(SDL_Renderer *renderer, bool isRed)
+{
+
+  drawTrafficLight(renderer, 450.0f, 380.0f, isRed, false);
+}
+
+void drawLightForD(SDL_Renderer *renderer, bool isRed)
+{
+
+  drawTrafficLight(renderer, 350.0f, 380.0f, isRed, false);
+}
 void drawTrafficLight(SDL_Renderer *renderer, float x, float y, bool isRed, bool horizontal)
 {
 
-  SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
-
+  SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
   SDL_FRect housing = {x, y, (horizontal ? 45.0f : 25.0f), (horizontal ? 25.0f : 45.0f)};
   SDL_RenderFillRect(renderer, &housing);
 
@@ -394,7 +413,6 @@ void drawTrafficLight(SDL_Renderer *renderer, float x, float y, bool isRed, bool
     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
   else
     SDL_SetRenderDrawColor(renderer, 60, 0, 0, 255);
-
   SDL_FRect redLamp = {x + padding, y + padding, size, size};
   SDL_RenderFillRect(renderer, &redLamp);
 
@@ -408,13 +426,4 @@ void drawTrafficLight(SDL_Renderer *renderer, float x, float y, bool isRed, bool
       horizontal ? y + padding : y + padding + 20.0f,
       size, size};
   SDL_RenderFillRect(renderer, &greenLamp);
-}
-
-void drawLightForB(SDL_Renderer *renderer, bool isRed)
-{
-
-  float x_pos = 480.0f;
-  float y_pos = 480.0f;
-
-  drawTrafficLight(renderer, x_pos, y_pos, isRed, false);
 }
