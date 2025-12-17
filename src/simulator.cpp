@@ -354,21 +354,45 @@ void drawArrow(SDL_Renderer *renderer, int x1, int y1, int x2, int y2, int x3, i
   SDL_RenderLine(renderer, (float)x3, (float)y3, (float)x1, (float)y1);
 }
 
+void drawTrafficLight(SDL_Renderer *renderer, float x, float y, bool isRed, bool horizontal);
+void drawLightForB(SDL_Renderer *renderer, bool isRed);
+
+void drawTrafficLight(SDL_Renderer *renderer, float x, float y, bool isRed, bool horizontal)
+{
+
+  SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
+
+  SDL_FRect housing = {x, y, (horizontal ? 45.0f : 25.0f), (horizontal ? 25.0f : 45.0f)};
+  SDL_RenderFillRect(renderer, &housing);
+
+  float size = 15.0f;
+  float padding = 5.0f;
+
+  if (isRed)
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+  else
+    SDL_SetRenderDrawColor(renderer, 60, 0, 0, 255);
+
+  SDL_FRect redLamp = {x + padding, y + padding, size, size};
+  SDL_RenderFillRect(renderer, &redLamp);
+
+  if (!isRed)
+    SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+  else
+    SDL_SetRenderDrawColor(renderer, 0, 60, 0, 255);
+
+  SDL_FRect greenLamp = {
+      horizontal ? x + padding + 20.0f : x + padding,
+      horizontal ? y + padding : y + padding + 20.0f,
+      size, size};
+  SDL_RenderFillRect(renderer, &greenLamp);
+}
+
 void drawLightForB(SDL_Renderer *renderer, bool isRed)
 {
-  // Draw light box
-  SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
-  // FIX: Use SDL_FRect for rendering coordinates
-  SDL_FRect lightBox = {400.0f, 300.0f, 50.0f, 30.0f};
-  SDL_RenderFillRect(renderer, &lightBox);
 
-  // Draw light
-  if (isRed)
-    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // red
-  else
-    SDL_SetRenderDrawColor(renderer, 11, 156, 50, 255); // green
+  float x_pos = 480.0f;
+  float y_pos = 480.0f;
 
-  // FIX: Use SDL_FRect for rendering coordinates
-  SDL_FRect straight_Light = {405.0f, 305.0f, 20.0f, 20.0f};
-  SDL_RenderFillRect(renderer, &straight_Light);
+  drawTrafficLight(renderer, x_pos, y_pos, isRed, false);
 }
