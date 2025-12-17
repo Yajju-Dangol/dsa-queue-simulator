@@ -312,26 +312,48 @@ void displayText(SDL_Renderer *renderer, TTF_Font *font, const char *text, int x
 
 void drawRoadsAndLane(SDL_Renderer *renderer, TTF_Font *font)
 {
-  SDL_SetRenderDrawColor(renderer, 211, 211, 211, 255);
   float center = (float)WINDOW_WIDTH / 2.0f;
   float road_half = (float)ROAD_WIDTH / 2.0f;
 
-  // FIX: Use SDL_FRect for rendering coordinates
-  // Vertical road
+  SDL_SetRenderDrawColor(renderer, 35, 35, 35, 255);
+
   SDL_FRect verticalRoad = {center - road_half, 0.0f, (float)ROAD_WIDTH, (float)WINDOW_HEIGHT};
   SDL_RenderFillRect(renderer, &verticalRoad);
 
-  // Horizontal road
   SDL_FRect horizontalRoad = {0.0f, center - road_half, (float)WINDOW_WIDTH, (float)ROAD_WIDTH};
   SDL_RenderFillRect(renderer, &horizontalRoad);
 
-  // Drawing lanes and labels
-  displayText(renderer, font, "A", (int)center, 10);
-  displayText(renderer, font, "B", (int)center, WINDOW_HEIGHT - 30);
-  displayText(renderer, font, "D", 10, (int)center);
-  displayText(renderer, font, "C", WINDOW_WIDTH - 30, (int)center);
+  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 
-  // Example light drawing for B
+  float dashWidth = 4.0f;
+  float dashHeight = 20.0f;
+  float gap = 20.0f;
+
+  for (float y = 0; y < WINDOW_HEIGHT; y += (dashHeight + gap))
+  {
+
+    if (y > center - road_half && y < center + road_half)
+      continue;
+
+    SDL_FRect dash = {center - (dashWidth / 2.0f), y, dashWidth, dashHeight};
+    SDL_RenderFillRect(renderer, &dash);
+  }
+
+  for (float x = 0; x < WINDOW_WIDTH; x += (dashHeight + gap))
+  {
+
+    if (x > center - road_half && x < center + road_half)
+      continue;
+
+    SDL_FRect dash = {x, center - (dashWidth / 2.0f), dashHeight, dashWidth};
+    SDL_RenderFillRect(renderer, &dash);
+  }
+
+  displayText(renderer, font, "A", (int)center + 10, 10);
+  displayText(renderer, font, "B", (int)center + 10, WINDOW_HEIGHT - 40);
+  displayText(renderer, font, "D", 10, (int)center + 10);
+  displayText(renderer, font, "C", WINDOW_WIDTH - 40, (int)center + 10);
+
   drawLightForB(renderer, nextLight != 2);
 }
 
