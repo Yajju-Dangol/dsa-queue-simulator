@@ -1,4 +1,5 @@
 #include <iostream>
+#include <algorithm>
 #include <vector>
 #include <string>
 #include <sstream>
@@ -45,6 +46,19 @@ struct SharedData
   int nextLight;
 };
 
+struct Vehicle
+{
+  float x, y;
+  float speed;
+  int lane; // 1=A, 2=B, 3=C, 4=D
+  SDL_Color bodyColor;
+  bool active;
+  bool horizontal;
+};
+
+// ----global data------
+std::vector<Vehicle> activeVehicles;
+
 // --- Function Declarations ---
 bool initializeSDL(SDL_Window **window, SDL_Renderer **renderer);
 void drawRoadsAndLane(SDL_Renderer *renderer, TTF_Font *font);
@@ -59,6 +73,11 @@ void drawLightForC(SDL_Renderer *renderer, bool isRed);
 void drawLightForD(SDL_Renderer *renderer, bool isRed);
 
 void drawTrafficLight(SDL_Renderer *renderer, float x, float y, bool isRed, bool horizontal);
+
+void drawCar(SDL_Renderer *renderer, Vehicle &v);
+
+void spawnVehicle(int lane);
+void updateVehicles();
 
 // Thread functions
 void socketReceiverThread();
@@ -198,28 +217,52 @@ int main(int argc, char *argv[])
   bool running = true;
   SDL_Event event;
 
+  spawnVehicle(1);
+  spawnVehicle(2);
+  spawnVehicle(3);
+  spawnVehicle(4);
+
   while (running)
   {
-    // Handle events
     while (SDL_PollEvent(&event))
     {
       if (event.type == SDL_EVENT_QUIT)
-      {
         running = false;
-      }
     }
 
-    // 1. Draw Static Elements
+    vehicleQueueMutex.lock();
+    if (!vehicleQueue.empty())
+    {
+      std::string data = vehicleQueue.front();
+      vehicleQueue.erase(vehicleQueue.begin());
+      vehicleQueueMutex.unlock();
+
+      try
+      {
+        if (!data.empty())
+          spawnVehicle(std::stoi(data));
+      }
+      catch (...)
+      {
+      }
+    }
+    else
+    {
+      vehicleQueueMutex.unlock();
+    }
+
+    // B. Update Positions (Move the cars)
+    updateVehicles();
+
+    // C. Rendering
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     SDL_RenderClear(renderer);
-    drawRoadsAndLane(renderer, font);
 
-    // 2. Refresh Light (Dynamic Element)
+    drawRoadsAndLane(renderer, font); // This already calls drawCar for you
     refreshLight(renderer);
 
-    // 3. Render and Present
     SDL_RenderPresent(renderer);
-    SDL_Delay(1000 / 60); // Cap frame rate to 60 FPS
+    SDL_Delay(16); // ~60 FPS
   }
 
   receiver_t.detach();
@@ -235,7 +278,6 @@ int main(int argc, char *argv[])
   SDL_Quit();
 
 #ifdef _WIN32
-  // Clean up WinSock
   WSACleanup();
 #endif
 
@@ -357,6 +399,11 @@ void drawRoadsAndLane(SDL_Renderer *renderer, TTF_Font *font)
   drawLightForC(renderer, lState != 1);
   drawLightForB(renderer, lState != 2);
   drawLightForD(renderer, lState != 2);
+
+  for (auto &v : activeVehicles)
+  {
+    drawCar(renderer, v);
+  }
 }
 
 void refreshLight(SDL_Renderer *renderer)
@@ -426,4 +473,132 @@ void drawTrafficLight(SDL_Renderer *renderer, float x, float y, bool isRed, bool
       horizontal ? y + padding : y + padding + 20.0f,
       size, size};
   SDL_RenderFillRect(renderer, &greenLamp);
+}
+
+// car
+
+void drawCar(SDL_Renderer *renderer, Vehicle &v)
+{
+  if (!v.active)
+    return;
+
+  float w = v.horizontal ? 40.0f : 25.0f;
+  float h = v.horizontal ? 25.0f : 40.0f;
+
+  // --- 1. Draw Body ---
+  SDL_SetRenderDrawColor(renderer, v.bodyColor.r, v.bodyColor.g, v.bodyColor.b, 255);
+  SDL_FRect body = {v.x, v.y, w, h};
+  SDL_RenderFillRect(renderer, &body);
+
+  // --- 2. Draw Windshield ---
+  SDL_SetRenderDrawColor(renderer, 150, 200, 255, 255);
+  SDL_FRect glass;
+  if (v.lane == 1)
+    glass = {v.x + 3, v.y + 25, 19, 8};
+  else if (v.lane == 2)
+    glass = {v.x + 3, v.y + 7, 19, 8};
+  else if (v.lane == 3)
+    glass = {v.x + 7, v.y + 3, 8, 19};
+  else if (v.lane == 4)
+    glass = {v.x + 25, v.y + 3, 8, 19};
+  SDL_RenderFillRect(renderer, &glass);
+
+  // --- 3. Draw Headlights  ---
+  SDL_SetRenderDrawColor(renderer, 255, 255, 150, 255);
+  if (v.lane == 1)
+  {
+    SDL_FRect h1 = {v.x + 4, v.y + 34, 4, 4}, h2 = {v.x + 17, v.y + 34, 4, 4};
+    SDL_RenderFillRect(renderer, &h1);
+    SDL_RenderFillRect(renderer, &h2);
+  }
+  else if (v.lane == 2)
+  {
+    SDL_FRect h1 = {v.x + 4, v.y + 2, 4, 4}, h2 = {v.x + 17, v.y + 2, 4, 4};
+    SDL_RenderFillRect(renderer, &h1);
+    SDL_RenderFillRect(renderer, &h2);
+  }
+  else if (v.lane == 3)
+  {
+    SDL_FRect h1 = {v.x + 2, v.y + 4, 4, 4}, h2 = {v.x + 2, v.y + 17, 4, 4};
+    SDL_RenderFillRect(renderer, &h1);
+    SDL_RenderFillRect(renderer, &h2);
+  }
+  else if (v.lane == 4)
+  {
+    SDL_FRect h1 = {v.x + 34, v.y + 4, 4, 4}, h2 = {v.x + 34, v.y + 17, 4, 4};
+    SDL_RenderFillRect(renderer, &h1);
+    SDL_RenderFillRect(renderer, &h2);
+  }
+}
+
+void spawnVehicle(int lane)
+{
+  Vehicle v;
+  v.active = true;
+  v.speed = 2.0f;
+  v.bodyColor = {(Uint8)(rand() % 255), (Uint8)(rand() % 255), (Uint8)(rand() % 255), 255};
+  float center = WINDOW_WIDTH / 2.0f;
+
+  switch (lane)
+  {
+  case 1:
+    v.x = center - 40;
+    v.y = 50;
+    v.horizontal = false;
+    break; // Lane A
+  case 2:
+    v.x = center + 15;
+    v.y = 700;
+    v.horizontal = false;
+    break; // Lane B
+  case 3:
+    v.x = 700;
+    v.y = center - 40;
+    v.horizontal = true;
+    break; // Lane C
+  case 4:
+    v.x = 50;
+    v.y = center + 15;
+    v.horizontal = true;
+    break; // Lane D
+  default:
+    return;
+  }
+  v.lane = lane;
+  activeVehicles.push_back(v);
+}
+
+void updateVehicles()
+{
+  int lState = nextLight.load();
+  for (auto &v : activeVehicles)
+  {
+    bool canMove = true;
+
+    if (v.lane == 1 && v.y >= 280 && v.y <= 290 && lState != 1)
+      canMove = false;
+    if (v.lane == 2 && v.y <= 480 && v.y >= 470 && lState != 2)
+      canMove = false;
+    if (v.lane == 3 && v.x <= 480 && v.x >= 470 && lState != 1)
+      canMove = false;
+    if (v.lane == 4 && v.x >= 280 && v.x <= 290 && lState != 2)
+      canMove = false;
+
+    if (canMove)
+    {
+      if (v.lane == 1)
+        v.y += v.speed;
+      if (v.lane == 2)
+        v.y -= v.speed;
+      if (v.lane == 3)
+        v.x -= v.speed;
+      if (v.lane == 4)
+        v.x += v.speed;
+    }
+  }
+
+  activeVehicles.erase(std::remove_if(activeVehicles.begin(), activeVehicles.end(),
+                                      [](const Vehicle &v)
+                                      { return v.x < -100 || v.x > 900 || v.y < -100 || v.y > 900; }),
+                       activeVehicles.end());
 }
