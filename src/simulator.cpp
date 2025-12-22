@@ -200,11 +200,6 @@ int main(int argc, char *argv[])
   bool running = true;
   SDL_Event event;
 
-  for (int lane = 1; lane <= 12; ++lane)
-  {
-    spawnVehicle(lane);
-  }
-
   while (running)
   {
     while (SDL_PollEvent(&event))
