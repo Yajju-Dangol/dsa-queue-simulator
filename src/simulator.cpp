@@ -521,7 +521,7 @@ void spawnVehicle(int lane)
   case 2:
   case 3:
   {
-    int sub = lane - 1; // 0,1,2
+    int sub = lane - 1; 
     float carW = 25.0f;
     float laneInnerOffset = ((float)LANE_WIDTH - carW) / 2.0f;
     float startX = center - road_half + laneInnerOffset;
@@ -579,31 +579,132 @@ void spawnVehicle(int lane)
 void updateVehicles()
 {
   int lState = nextLight.load();
+
+  std::vector<Vehicle *> laneGroups[13]; 
   for (auto &v : activeVehicles)
   {
-    bool canMove = true;
-
-    if ((v.lane >= 1 && v.lane <= 3) && v.y >= 280 && v.y <= 290 && lState != 1)
-      canMove = false;
-    if ((v.lane >= 4 && v.lane <= 6) && v.y <= 480 && v.y >= 470 && lState != 2)
-      canMove = false;
-    if ((v.lane >= 7 && v.lane <= 9) && v.x <= 480 && v.x >= 470 && lState != 1)
-      canMove = false;
-    if ((v.lane >= 10 && v.lane <= 12) && v.x >= 280 && v.x <= 290 && lState != 2)
-      canMove = false;
-
-    if (canMove)
-    {
-      if (v.lane >= 1 && v.lane <= 3)
-        v.y += v.speed;
-      if (v.lane >= 4 && v.lane <= 6)
-        v.y -= v.speed;
-      if (v.lane >= 7 && v.lane <= 9)
-        v.x -= v.speed;
-      if (v.lane >= 10 && v.lane <= 12)
-        v.x += v.speed;
-    }
+    if (v.lane >= 1 && v.lane <= 12)
+      laneGroups[v.lane].push_back(&v);
   }
+
+  auto sortLane = [&](int laneStart, int laneEnd, bool vertical, bool increasing)
+  {
+    for (int lane = laneStart; lane <= laneEnd; ++lane)
+    {
+      auto &vec = laneGroups[lane];
+      if (vertical)
+      {
+        if (increasing)
+          std::sort(vec.begin(), vec.end(), [](Vehicle *a, Vehicle *b)
+                    { return a->y < b->y; });
+        else
+          std::sort(vec.begin(), vec.end(), [](Vehicle *a, Vehicle *b)
+                    { return a->y > b->y; });
+      }
+      else
+      {
+        if (increasing)
+          std::sort(vec.begin(), vec.end(), [](Vehicle *a, Vehicle *b)
+                    { return a->x < b->x; });
+        else
+          std::sort(vec.begin(), vec.end(), [](Vehicle *a, Vehicle *b)
+                    { return a->x > b->x; });
+      }
+    }
+  };
+
+  sortLane(1, 3, true, false);
+  sortLane(4, 6, true, true);
+  sortLane(7, 9, false, true);
+  
+  sortLane(10, 12, false, false);
+
+  float minGap = 45.0f;
+
+  auto canAdvance = [&](Vehicle *v)
+  {
+    if ((v->lane >= 1 && v->lane <= 3) && v->y >= 280 && v->y <= 290 && lState != 1)
+      return false;
+    if ((v->lane >= 4 && v->lane <= 6) && v->y <= 480 && v->y >= 470 && lState != 2)
+      return false;
+    if ((v->lane >= 7 && v->lane <= 9) && v->x <= 480 && v->x >= 470 && lState != 1)
+      return false;
+    if ((v->lane >= 10 && v->lane <= 12) && v->x >= 280 && v->x <= 290 && lState != 2)
+      return false;
+    return true;
+  };
+
+  auto moveVertical = [&](int laneStart, int laneEnd, bool increasing)
+  {
+    for (int lane = laneStart; lane <= laneEnd; ++lane)
+    {
+      auto &vec = laneGroups[lane];
+      for (size_t i = 0; i < vec.size(); ++i)
+      {
+        Vehicle *v = vec[i];
+        if (!canAdvance(v))
+          continue;
+
+        float proposedY = v->y + (increasing ? v->speed : -v->speed);
+
+        if (i > 0)
+        {
+          Vehicle *front = vec[i - 1];
+          if (increasing)
+          {
+            if (front->y - proposedY < minGap)
+              continue;
+          }
+          else
+          {
+            if (proposedY - front->y < minGap)
+              continue;
+          }
+        }
+
+        v->y = proposedY;
+      }
+    }
+  };
+
+  auto moveHorizontal = [&](int laneStart, int laneEnd, bool increasing)
+  {
+    for (int lane = laneStart; lane <= laneEnd; ++lane)
+    {
+      auto &vec = laneGroups[lane];
+      for (size_t i = 0; i < vec.size(); ++i)
+      {
+        Vehicle *v = vec[i];
+        if (!canAdvance(v))
+          continue;
+
+        float proposedX = v->x + (increasing ? v->speed : -v->speed);
+
+        if (i > 0)
+        {
+          Vehicle *front = vec[i - 1];
+          if (increasing)
+          {
+            if (front->x - proposedX < minGap)
+              continue;
+          }
+          else
+          {
+            if (proposedX - front->x < minGap)
+              continue;
+          }
+        }
+
+        v->x = proposedX;
+      }
+    }
+  };
+
+  
+  moveVertical(1, 3, true);  
+  moveVertical(4, 6, false);  
+  moveHorizontal(7, 9, false); 
+  moveHorizontal(10, 12, true); 
 
   activeVehicles.erase(std::remove_if(activeVehicles.begin(), activeVehicles.end(),
                                       [](const Vehicle &v)
