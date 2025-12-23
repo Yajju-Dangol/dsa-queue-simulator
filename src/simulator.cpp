@@ -420,19 +420,19 @@ void drawArrow(SDL_Renderer *renderer, int x1, int y1, int x2, int y2, int x3, i
 void drawLightForA(SDL_Renderer *renderer, bool isRed)
 {
 
-  drawTrafficLight(renderer, 380.0f, 355.0f, isRed, true);
+  drawTrafficLight(renderer, 380.0f, 345.0f, isRed, true);
 }
 
 void drawLightForB(SDL_Renderer *renderer, bool isRed)
 {
 
-  drawTrafficLight(renderer, 375.0f, 450.0f, isRed, true);
+  drawTrafficLight(renderer, 375.0f, 430.0f, isRed, true);
 }
 
 void drawLightForC(SDL_Renderer *renderer, bool isRed)
 {
 
-  drawTrafficLight(renderer, 450.0f, 380.0f, isRed, false);
+  drawTrafficLight(renderer, 430.0f, 380.0f, isRed, false);
 }
 
 void drawLightForD(SDL_Renderer *renderer, bool isRed)
