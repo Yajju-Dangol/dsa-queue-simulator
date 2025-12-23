@@ -23,7 +23,6 @@ typedef int SOCKET;
 #define PORT 5000
 #define BUFFER_SIZE 100
 
-// random lane 1–12 (3 per arm in simulator)
 int generateLane()
 {
   return 1 + std::rand() % 12;

@@ -298,7 +298,7 @@ bool initializeSDL(SDL_Window **window, SDL_Renderer **renderer)
 
 void displayText(SDL_Renderer *renderer, TTF_Font *font, const char *text, int x, int y)
 {
-  SDL_Color textColor = {0, 0, 0, 255};
+  SDL_Color textColor = {255, 255, 255, 255};
   SDL_Surface *textSurface = TTF_RenderText_Solid(font, text, strlen(text), textColor);
 
   if (!textSurface)
@@ -337,6 +337,7 @@ void drawRoadsAndLane(SDL_Renderer *renderer, TTF_Font *font)
 
   SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
   float laneOffset = (float)LANE_WIDTH;
+  float laneCenterOffset = laneOffset / 2.0f;
 
   for (int i = 1; i <= 2; ++i)
   {
@@ -371,10 +372,22 @@ void drawRoadsAndLane(SDL_Renderer *renderer, TTF_Font *font)
     SDL_RenderFillRect(renderer, &dash);
   }
 
-  displayText(renderer, font, "A", (int)center + 10, 10);
-  displayText(renderer, font, "B", (int)center + 10, WINDOW_HEIGHT - 40);
-  displayText(renderer, font, "D", 10, (int)center + 10);
-  displayText(renderer, font, "C", WINDOW_WIDTH - 40, (int)center + 10);
+  // Lane labels
+  float topY = 10.0f;
+  float bottomY = WINDOW_HEIGHT - 40.0f;
+  float leftX = 10.0f;
+  float rightX = WINDOW_WIDTH - 60.0f;
+
+  for (int i = 0; i < 3; ++i)
+  {
+    float xTopBottom = (center - road_half) + laneOffset * i + laneCenterOffset - 10.0f;
+    displayText(renderer, font, (std::string("A") + std::to_string(i + 1)).c_str(), (int)xTopBottom, (int)topY);
+    displayText(renderer, font, (std::string("B") + std::to_string(i + 1)).c_str(), (int)xTopBottom, (int)bottomY);
+
+    float yLeftRight = (center - road_half) + laneOffset * i + laneCenterOffset - 10.0f;
+    displayText(renderer, font, (std::string("D") + std::to_string(i + 1)).c_str(), (int)leftX, (int)yLeftRight);
+    displayText(renderer, font, (std::string("C") + std::to_string(i + 1)).c_str(), (int)rightX, (int)yLeftRight);
+  }
 
   int lState = nextLight.load();
   drawLightForA(renderer, lState != 1);
