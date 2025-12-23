@@ -83,11 +83,14 @@ void lightControlThread()
 {
   while (true)
   {
-    nextLight = 0;
+    nextLight = 1;
     SDL_Delay(5000);
-
+    nextLight = 0;
+    SDL_Delay(1000);
     nextLight = 2;
     SDL_Delay(5000);
+    nextLight = 0;
+    SDL_Delay(1000);
   }
 }
 
@@ -275,7 +278,7 @@ bool initializeSDL(SDL_Window **window, SDL_Renderer **renderer)
     return false;
   }
 
-  *window = SDL_CreateWindow("Junction Diagram", WINDOW_WIDTH, WINDOW_HEIGHT, 0);
+  *window = SDL_CreateWindow("Traffic Simulator", WINDOW_WIDTH, WINDOW_HEIGHT, 0);
   if (!*window)
   {
     SDL_Log("Failed to create window: %s", SDL_GetError());
