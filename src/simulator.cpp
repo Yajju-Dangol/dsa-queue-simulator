@@ -679,6 +679,19 @@ void updateVehicles()
         }
 
         v->y = proposedY;
+
+        if (v->lane == 3 && v->y >= 337.5f && v->y < 380.0f)
+        {
+          v->lane = 10;
+          v->horizontal = true;
+          v->y = 337.5f;
+        }
+        else if (v->lane == 4 && v->y <= 437.5f && v->y > 420.0f)
+        {
+          v->lane = 9;
+          v->horizontal = true;
+          v->y = 437.5f;
+        }
       }
     }
   };
@@ -712,6 +725,20 @@ void updateVehicles()
         }
 
         v->x = proposedX;
+
+        if (v->lane == 9 && v->x <= 437.5f && v->x > 420.0f)
+        {
+          v->lane = 3;
+          v->horizontal = false;
+          v->x = 437.5f;
+        }
+    
+        else if (v->lane == 10 && v->x >= 337.5f && v->x < 380.0f)
+        {
+          v->lane = 4;
+          v->horizontal = false;
+          v->x = 337.5f;
+        }
       }
     }
   };
