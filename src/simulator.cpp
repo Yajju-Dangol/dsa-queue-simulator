@@ -50,6 +50,7 @@ struct Vehicle
   float speed;
   // 1–3 A, 4–6 B, 7–9 C, 10–12 D
   int lane;
+  int pathOption; // 0 = Straight/Shift, 1 = Turn Right
   SDL_Color bodyColor;
   bool active;
   bool horizontal;
@@ -530,6 +531,7 @@ void spawnVehicle(int lane)
   Vehicle v;
   v.active = true;
   v.speed = 2.0f;
+  v.pathOption = std::rand() % 2;
   v.bodyColor = {(Uint8)(rand() % 255), (Uint8)(rand() % 255), (Uint8)(rand() % 255), 255};
   float center = WINDOW_WIDTH / 2.0f;
   float road_half = (float)ROAD_WIDTH / 2.0f;
@@ -683,17 +685,52 @@ void updateVehicles()
 
         v->y = proposedY;
 
+        v->y = proposedY;
+
+        // Existing Turn Logic for Lane 3 -> 10 (Left)
         if (v->lane == 3 && v->y >= 337.5f && v->y < 380.0f)
         {
           v->lane = 10;
           v->horizontal = true;
           v->y = 337.5f;
         }
+        // Existing Turn Logic for Lane 4 -> 9 (Left)
         else if (v->lane == 4 && v->y <= 437.5f && v->y > 420.0f)
         {
           v->lane = 9;
           v->horizontal = true;
           v->y = 437.5f;
+        }
+        
+        // Priority Lane Logic: A2 (Lane 2, Down | Flow increasing Y)
+        else if (v->lane == 2)
+        {
+            if (v->pathOption == 1 && v->y >= 430.0f && v->y <= 445.0f) // Turn Right to Road D (Lane 9, West)
+            {
+               v->lane = 9;
+               v->horizontal = true;
+               v->y = 437.5f;
+            }
+            else if (v->pathOption == 0 && v->y >= 380.0f && v->y <= 400.0f) // Straight Shift to Lane 3 (South)
+            {
+                v->lane = 3; 
+                v->x = 437.5f; 
+            }
+        }
+        // Priority Lane Logic: B2 (Lane 5, Up | Flow decreasing Y)
+        else if (v->lane == 5)
+        {
+            if (v->pathOption == 1 && v->y <= 345.0f && v->y >= 330.0f) // Turn Right to Road C (Lane 10, East)
+            {
+                v->lane = 10;
+                v->horizontal = true;
+                v->y = 337.5f;
+            }
+            else if (v->pathOption == 0 && v->y <= 420.0f && v->y >= 400.0f) // Straight Shift to Lane 4 (North)
+            {
+                v->lane = 4;
+                v->x = 337.5f; 
+            }
         }
       }
     }
@@ -729,18 +766,58 @@ void updateVehicles()
 
         v->x = proposedX;
 
+        // Existing Turn Logic for Lane 9 -> 3 (Left) (West -> South)
         if (v->lane == 9 && v->x <= 437.5f && v->x > 420.0f)
         {
           v->lane = 3;
           v->horizontal = false;
-          v->x = 437.5f;
+          v->x = 437.5f; 
         }
     
+        // Existing Turn Logic for Lane 10 -> 4 (Left) (East -> North)
         else if (v->lane == 10 && v->x >= 337.5f && v->x < 380.0f)
         {
           v->lane = 4;
           v->horizontal = false;
           v->x = 337.5f;
+        }
+
+          
+        else if (v->lane == 8)
+        {
+             
+             if (v->pathOption == 1 && v->x <= 345.0f && v->x >= 330.0f)
+             {
+                 v->lane = 4;
+                 v->horizontal = false;
+                 
+                 v->x = 337.5f; 
+              
+             }
+             
+             else if (v->pathOption == 0 && v->x <= 420.0f && v->x >= 400.0f)
+             {
+                 v->lane = 9;
+                 v->y = 437.5f; 
+             }
+        }
+
+        
+        else if (v->lane == 11)
+        {
+            
+            if (v->pathOption == 1 && v->x >= 430.0f && v->x <= 445.0f)
+            {
+                v->lane = 3; 
+                v->horizontal = false;
+                v->x = 437.5f;
+            }
+            
+            else if (v->pathOption == 0 && v->x >= 380.0f && v->x <= 400.0f)
+            {
+                v->lane = 10;
+                v->y = 337.5f; 
+            }
         }
       }
     }
