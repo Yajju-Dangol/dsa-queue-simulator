@@ -524,6 +524,9 @@ void drawCar(SDL_Renderer *renderer, Vehicle &v)
 
 void spawnVehicle(int lane)
 {
+  if (lane == 1 || lane == 6 || lane == 7 || lane == 12)
+    return;
+
   Vehicle v;
   v.active = true;
   v.speed = 2.0f;

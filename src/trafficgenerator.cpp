@@ -153,7 +153,9 @@ int getRoadFromLane(int lane) {
 
 // Generate a random lane number (1-12)
 int generateLane() {
-    return 1 + std::rand() % 12;
+    static const int validLanes[] = {2, 3, 4, 5, 8, 9, 10, 11};
+    int index = std::rand() % 8;
+    return validLanes[index];
 }
 
 // Generate a vehicle and add it to the appropriate queue
