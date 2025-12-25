@@ -26,14 +26,14 @@ This will compile the code and create the executables in the `build` folder.
 ### Step 2: Start the Simulator
 Run the simulator first so it can listen for connections. In your terminal, type:
 ```bash
-./build/Simulator.exe
+./build/simulator.exe
 ```
 *You should see a window open with the road layout.*
 
 ### Step 3: Start the Traffic Generator
 Open a **new, separate terminal window** (keep the first one running!). navigate to the project folder, and run:
 ```bash
-./build/TrafficGenerator.exe
+./build/trafficgenerator.exe
 ```
 *You will be asked to enter a traffic speed (1-10). Enter a number and press Enter.*
 
