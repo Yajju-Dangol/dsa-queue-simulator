@@ -88,22 +88,9 @@ void spawnVehicle(int lane);
 void updateVehicles();
 
 void socketReceiverThread();
-void lightControlThread();
 
-void lightControlThread()
-{
-  while (true)
-  {
-    nextLight = 1;
-    SDL_Delay(5000);
-    nextLight = 0;
-    SDL_Delay(1000);
-    nextLight = 2;
-    SDL_Delay(5000);
-    nextLight = 0;
-    SDL_Delay(1000);
-  }
-}
+
+
 
 void socketReceiverThread()
 {
@@ -209,10 +196,43 @@ int main(int argc, char *argv[])
   }
 
   std::thread receiver_t(socketReceiverThread);
-  std::thread light_t(lightControlThread);
+  // std::thread light_t(lightControlThread);
 
   bool running = true;
   SDL_Event event;
+
+  // Traffic Light Logic State
+  Uint32 lastLightSwitchTime = SDL_GetTicks();
+  int lightPhase = 1; // 1=A, 2=B, 3=C, 4=D
+  int targetPhase = 1;
+  bool isTransitioning = false; // If true, all red
+  int priorityLane = -1; // -1 none, 0=A, 1=B, 2=C, 3=D
+
+  auto countVehiclesOnRoad = [](int roadIndex) -> int {
+      int count = 0;
+      for (const auto& v : activeVehicles) {
+          if (!v.active) continue;
+          if (v.turning) continue; // Don't count cars already in intersection
+
+          // Road A (Lanes 1-3) (Moves Down, Stop ~280)
+          if (roadIndex == 0 && v.lane >= 1 && v.lane <= 3) {
+             if (v.y <= 295) count++; // Count including stop line
+          }
+          // Road B (Lanes 4-6) (Moves Up, Stop ~480)
+          else if (roadIndex == 1 && v.lane >= 4 && v.lane <= 6) {
+             if (v.y >= 465) count++; 
+          }
+          // Road C (Lanes 7-9) (Moves Left, Stop ~480)
+          else if (roadIndex == 2 && v.lane >= 7 && v.lane <= 9) {
+             if (v.x >= 465) count++; 
+          }
+          // Road D (Lanes 10-12) (Moves Right, Stop ~280)
+          else if (roadIndex == 3 && v.lane >= 10 && v.lane <= 12) {
+             if (v.x <= 295) count++; 
+          }
+      }
+      return count;
+  };
 
   while (running)
   {
@@ -243,6 +263,79 @@ int main(int argc, char *argv[])
       vehicleQueueMutex.unlock();
     }
 
+    // --- Traffic Light Logic ---
+    Uint32 currentTime = SDL_GetTicks();
+    
+    // Check for Priority
+    if (priorityLane == -1) {
+        for (int i = 0; i < 4; i++) {
+            if (countVehiclesOnRoad(i) >= 6) {
+                priorityLane = i;
+                std::cout << "Priority mode activated for Road " << (char)('A' + i) << std::endl;
+                break;
+            }
+        }
+    } else {
+        if (countVehiclesOnRoad(priorityLane) <= 3) {
+            std::cout << "Priority mode deactivated for Road " << (char)('A' + priorityLane) << std::endl;
+            priorityLane = -1;
+        }
+    }
+
+    // Determine Target Phase (if not transitioning)
+    if (!isTransitioning) {
+        targetPhase = lightPhase; // Default to stay
+        
+        if (priorityLane != -1) {
+            if (lightPhase != priorityLane + 1) {
+                targetPhase = priorityLane + 1;
+            }
+        } else {
+            // Normal Cycle
+            if (currentTime - lastLightSwitchTime > 3000) { 
+                 bool found = false;
+                 // Look for next road with cars
+                 for (int i = 1; i <= 4; i++) {
+                     int checkIndex = (lightPhase - 1 + i) % 4; // Check A, B, C, D order relative to current
+                     if (countVehiclesOnRoad(checkIndex) > 0) {
+                         targetPhase = checkIndex + 1;
+                         found = true;
+                         break;
+                     }
+                 }
+                 // If all empty, cycle to next anyway to keep alive
+                 if (!found) {
+                     targetPhase = (lightPhase % 4) + 1;
+                 }
+            }
+        }
+    }
+
+    // State Machine
+    if (lightPhase != targetPhase) {
+        if (!isTransitioning) {
+            // Start Transition
+            isTransitioning = true;
+            lastLightSwitchTime = currentTime;
+            nextLight = 0; // All Red
+        } 
+        else {
+            // Wait for clearance (1s)
+            if (currentTime - lastLightSwitchTime > 1000) {
+                lightPhase = targetPhase;
+                nextLight = lightPhase;
+                isTransitioning = false;
+                lastLightSwitchTime = currentTime;
+            }
+        }
+    } else {
+        // Enforce current light
+        if (!isTransitioning) {
+             nextLight = lightPhase;
+        }
+    }
+    // ---------------------------
+
     updateVehicles();
 
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
@@ -256,7 +349,7 @@ int main(int argc, char *argv[])
   }
 
   receiver_t.detach();
-  light_t.detach();
+  // light_t.detach();
 
   if (font)
     TTF_CloseFont(font);
@@ -404,10 +497,14 @@ void drawRoadsAndLane(SDL_Renderer *renderer, TTF_Font *font)
   }
 
   int lState = nextLight.load();
+  // Phase 1: A Green
   drawLightForA(renderer, lState != 1);
-  drawLightForC(renderer, lState != 1);
+  // Phase 2: B Green
   drawLightForB(renderer, lState != 2);
-  drawLightForD(renderer, lState != 2);
+  // Phase 3: C Green
+  drawLightForC(renderer, lState != 3);
+  // Phase 4: D Green
+  drawLightForD(renderer, lState != 4);
 
   for (auto &v : activeVehicles)
   {
@@ -657,13 +754,17 @@ void updateVehicles()
 
   auto canAdvance = [&](Vehicle *v)
   {
+    // A Needs 1
     if ((v->lane >= 1 && v->lane <= 3) && v->y >= 280 && v->y <= 290 && lState != 1)
       return false;
+    // B Needs 2
     if ((v->lane >= 4 && v->lane <= 6) && v->y <= 480 && v->y >= 470 && lState != 2)
       return false;
-    if ((v->lane >= 7 && v->lane <= 9) && v->x <= 480 && v->x >= 470 && lState != 1)
+    // C Needs 3
+    if ((v->lane >= 7 && v->lane <= 9) && v->x <= 480 && v->x >= 470 && lState != 3)
       return false;
-    if ((v->lane >= 10 && v->lane <= 12) && v->x >= 280 && v->x <= 290 && lState != 2)
+    // D Needs 4
+    if ((v->lane >= 10 && v->lane <= 12) && v->x >= 280 && v->x <= 290 && lState != 4)
       return false;
     return true;
   };

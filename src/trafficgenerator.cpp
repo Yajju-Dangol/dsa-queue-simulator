@@ -283,17 +283,43 @@ int main()
 
   std::srand((unsigned int)std::time(NULL));
 
+  // Ask for traffic generation speed (1-10)
+  int speedLevel = 5; // Default
+  std::cout << "Enter traffic speed (1-10, where 10 is fastest): ";
+  if (std::cin >> speedLevel) {
+      if (speedLevel < 1) speedLevel = 1;
+      if (speedLevel > 10) speedLevel = 10;
+  } else {
+      std::cin.clear();
+      std::cin.ignore(10000, '\n'); 
+      // Keep default
+  }
+  std::cout << "Traffic Speed set to: " << speedLevel << "/10" << std::endl;
+
+  auto getTrafficDelay = [speedLevel]() -> int {
+     
+      int minDelayBase = 2000 - (speedLevel - 1) * 200; // 1->2000, 10->200
+      if (minDelayBase < 100) minDelayBase = 100;
+      
+      int randomRange = 1000 - (speedLevel - 1) * 100; // 1->1000, 10->100
+      if (randomRange < 50) randomRange = 50;
+      
+      return minDelayBase + std::rand() % randomRange;
+  };
+
   std::thread generatorThread([&]() {
     while (true) {
       generateVehicle();
-      int delay = 1 + std::rand() % 3;
-      std::this_thread::sleep_for(std::chrono::seconds(delay));
+      // Moderate generation speed: 500ms to 1500ms
+      int delay = getTrafficDelay();
+      std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     }
   });
 
   while (true) {
     processQueuesAndSend(sock);
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000 + std::rand() % 1000));
+    // Faster processing: 200ms to 500ms
+    std::this_thread::sleep_for(std::chrono::milliseconds(200 + std::rand() % 300));
   }
 
   generatorThread.detach();
