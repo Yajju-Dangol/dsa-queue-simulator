@@ -54,6 +54,16 @@ struct Vehicle
   SDL_Color bodyColor;
   bool active;
   bool horizontal;
+  
+  // Turning state
+  bool turning;
+  float t;
+  float t_speed;
+  float p0x, p0y;
+  float p1x, p1y;
+  float p2x, p2y;
+  int targetLane;
+  bool targetHorizontal;
 };
 
 std::vector<Vehicle> activeVehicles;
@@ -533,6 +543,9 @@ void spawnVehicle(int lane)
   v.speed = 2.0f;
   v.pathOption = std::rand() % 2;
   v.bodyColor = {(Uint8)(rand() % 255), (Uint8)(rand() % 255), (Uint8)(rand() % 255), 255};
+  v.turning = false;
+  v.t = 0.0f;
+
   float center = WINDOW_WIDTH / 2.0f;
   float road_half = (float)ROAD_WIDTH / 2.0f;
 
@@ -655,6 +668,58 @@ void updateVehicles()
     return true;
   };
 
+  auto updateTurn = [&](Vehicle *v)
+  {
+      v->t += v->t_speed;
+      
+      // Switch to target visuals halfway through
+      if (v->t >= 0.5f && v->lane != v->targetLane) {
+          v->lane = v->targetLane;
+          v->horizontal = v->targetHorizontal;
+      }
+
+      if (v->t >= 1.0f)
+      {
+          v->t = 1.0f;
+          v->turning = false;
+          // Ensure final state
+          v->lane = v->targetLane;
+          v->horizontal = v->targetHorizontal;
+          v->x = v->p2x;
+          v->y = v->p2y;
+      }
+      else
+      {
+          float u = 1.0f - v->t;
+          float tt = v->t * v->t;
+          float uu = u * u;
+          v->x = uu * v->p0x + 2 * u * v->t * v->p1x + tt * v->p2x;
+          v->y = uu * v->p0y + 2 * u * v->t * v->p1y + tt * v->p2y;
+      }
+  };
+
+  auto startTurn = [&](Vehicle *v, int tLane, bool tHorz, float p1x, float p1y, float p2x, float p2y)
+  {
+      v->turning = true;
+      v->t = 0.0f;
+      v->targetLane = tLane;
+      v->targetHorizontal = tHorz;
+      v->p0x = v->x;
+      v->p0y = v->y;
+      v->p1x = p1x;
+      v->p1y = p1y;
+      v->p2x = p2x;
+      v->p2y = p2y;
+      
+      float dx = v->p0x - v->p2x;
+      float dy = v->p0y - v->p2y;
+      float dist = std::sqrt(dx*dx + dy*dy);
+      
+      float len = dist * 1.11f;
+      if (len < 1.0f) len = 1.0f;
+      v->t_speed = v->speed / len; 
+  };
+
   auto moveVertical = [&](int laneStart, int laneEnd, bool increasing)
   {
     for (int lane = laneStart; lane <= laneEnd; ++lane)
@@ -663,6 +728,12 @@ void updateVehicles()
       for (size_t i = 0; i < vec.size(); ++i)
       {
         Vehicle *v = vec[i];
+        
+        if (v->turning) {
+            updateTurn(v);
+            continue;
+        }
+
         if (!canAdvance(v))
           continue;
 
@@ -671,6 +742,7 @@ void updateVehicles()
         if (i > 0)
         {
           Vehicle *front = vec[i - 1];
+         
           if (increasing)
           {
             if (front->y - proposedY < minGap)
@@ -685,48 +757,40 @@ void updateVehicles()
 
         v->y = proposedY;
 
-        v->y = proposedY;
-
-        // Existing Turn Logic for Lane 3 -> 10 (Left)
-        if (v->lane == 3 && v->y >= 337.5f && v->y < 380.0f)
+       
+       
+        if (v->lane == 3 && v->y >= 307.5f && v->y < 380.0f) // Trigger earlier
         {
-          v->lane = 10;
-          v->horizontal = true;
-          v->y = 337.5f;
+           startTurn(v, 10, true, 437.5f, 337.5f, 467.5f, 337.5f);
         }
-        // Existing Turn Logic for Lane 4 -> 9 (Left)
-        else if (v->lane == 4 && v->y <= 437.5f && v->y > 420.0f)
+       
+        else if (v->lane == 4 && v->y <= 467.5f && v->y > 400.0f)
         {
-          v->lane = 9;
-          v->horizontal = true;
-          v->y = 437.5f;
+           startTurn(v, 9, true, 337.5f, 437.5f, 307.5f, 437.5f);
         }
         
-        // Priority Lane Logic: A2 (Lane 2, Down | Flow increasing Y)
+       
         else if (v->lane == 2)
         {
-            if (v->pathOption == 1 && v->y >= 430.0f && v->y <= 445.0f) // Turn Right to Road D (Lane 9, West)
+            if (v->pathOption == 1 && v->y >= 407.5f && v->y <= 445.0f) 
             {
-               v->lane = 9;
-               v->horizontal = true;
-               v->y = 437.5f;
+               startTurn(v, 9, true, 387.5f, 437.5f, 357.5f, 437.5f);
             }
-            else if (v->pathOption == 0 && v->y >= 380.0f && v->y <= 400.0f) // Straight Shift to Lane 3 (South)
+            else if (v->pathOption == 0 && v->y >= 380.0f && v->y <= 400.0f) // Shift
             {
+                
                 v->lane = 3; 
                 v->x = 437.5f; 
             }
         }
-        // Priority Lane Logic: B2 (Lane 5, Up | Flow decreasing Y)
+       
         else if (v->lane == 5)
         {
-            if (v->pathOption == 1 && v->y <= 345.0f && v->y >= 330.0f) // Turn Right to Road C (Lane 10, East)
+            if (v->pathOption == 1 && v->y <= 367.5f && v->y >= 330.0f)
             {
-                v->lane = 10;
-                v->horizontal = true;
-                v->y = 337.5f;
+                startTurn(v, 10, true, 387.5f, 337.5f, 417.5f, 337.5f);
             }
-            else if (v->pathOption == 0 && v->y <= 420.0f && v->y >= 400.0f) // Straight Shift to Lane 4 (North)
+            else if (v->pathOption == 0 && v->y <= 420.0f && v->y >= 400.0f) // Shift
             {
                 v->lane = 4;
                 v->x = 337.5f; 
@@ -744,6 +808,12 @@ void updateVehicles()
       for (size_t i = 0; i < vec.size(); ++i)
       {
         Vehicle *v = vec[i];
+
+        if (v->turning) {
+            updateTurn(v);
+            continue;
+        }
+
         if (!canAdvance(v))
           continue;
 
@@ -766,54 +836,37 @@ void updateVehicles()
 
         v->x = proposedX;
 
-        // Existing Turn Logic for Lane 9 -> 3 (Left) (West -> South)
-        if (v->lane == 9 && v->x <= 437.5f && v->x > 420.0f)
+        // Lane 9 -> 3 (Left) (Moves Left)
+        if (v->lane == 9 && v->x <= 467.5f && v->x > 420.0f)
         {
-          v->lane = 3;
-          v->horizontal = false;
-          v->x = 437.5f; 
+           startTurn(v, 3, false, 437.5f, 437.5f, 437.5f, 467.5f);
         }
-    
-        // Existing Turn Logic for Lane 10 -> 4 (Left) (East -> North)
-        else if (v->lane == 10 && v->x >= 337.5f && v->x < 380.0f)
+        // Lane 10 -> 4 (Left) (Moves Right)
+        else if (v->lane == 10 && v->x >= 307.5f && v->x < 380.0f)
         {
-          v->lane = 4;
-          v->horizontal = false;
-          v->x = 337.5f;
+           startTurn(v, 4, false, 337.5f, 337.5f, 337.5f, 307.5f);
         }
-
-          
+        // Lane 8 -> 4 (Right) (Moves Left)
         else if (v->lane == 8)
         {
-             
-             if (v->pathOption == 1 && v->x <= 345.0f && v->x >= 330.0f)
+             if (v->pathOption == 1 && v->x <= 367.5f && v->x >= 330.0f)
              {
-                 v->lane = 4;
-                 v->horizontal = false;
-                 
-                 v->x = 337.5f; 
-              
+                 startTurn(v, 4, false, 337.5f, 387.5f, 337.5f, 357.5f); 
              }
-             
-             else if (v->pathOption == 0 && v->x <= 420.0f && v->x >= 400.0f)
+             else if (v->pathOption == 0 && v->x <= 420.0f && v->x >= 400.0f) // Shift
              {
                  v->lane = 9;
                  v->y = 437.5f; 
              }
         }
-
-        
+        // Lane 11 -> 3 (Right) (Moves Right)
         else if (v->lane == 11)
         {
-            
-            if (v->pathOption == 1 && v->x >= 430.0f && v->x <= 445.0f)
+            if (v->pathOption == 1 && v->x >= 407.5f && v->x <= 445.0f)
             {
-                v->lane = 3; 
-                v->horizontal = false;
-                v->x = 437.5f;
+                startTurn(v, 3, false, 437.5f, 387.5f, 437.5f, 417.5f);
             }
-            
-            else if (v->pathOption == 0 && v->x >= 380.0f && v->x <= 400.0f)
+            else if (v->pathOption == 0 && v->x >= 380.0f && v->x <= 400.0f) // Shift
             {
                 v->lane = 10;
                 v->y = 337.5f; 
@@ -823,7 +876,6 @@ void updateVehicles()
     }
   };
 
-  
   moveVertical(1, 3, true);  
   moveVertical(4, 6, false);  
   moveHorizontal(7, 9, false); 
