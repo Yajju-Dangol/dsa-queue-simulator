@@ -9,6 +9,7 @@
 #include <mutex>
 #include <vector>
 
+// Standard networking headers for Windows/Linux
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -26,7 +27,7 @@ typedef int SOCKET;
 #define PORT 5000
 #define BUFFER_SIZE 100
 
-// Vehicle structure to store vehicle information
+// Vehicle structure holding basic info like lane and road ID
 struct Vehicle {
     int lane;          
     int road;           
@@ -34,7 +35,7 @@ struct Vehicle {
     double timestamp;   
 };
 
-// Queue data structure for vehicles
+// Thread-safe Queue class to manage vehicles for each road safely
 class VehicleQueue {
 private:
     std::queue<Vehicle> queue;
@@ -45,14 +46,14 @@ private:
 public:
     VehicleQueue(int road) : roadId(road), vehicleCount(0) {}
 
-    // Enqueue a vehicle
+    // Adds a vehicle to the queue
     void enqueue(const Vehicle& vehicle) {
         std::lock_guard<std::mutex> lock(queueMutex);
         queue.push(vehicle);
         vehicleCount++;
     }
 
-    // Dequeue a vehicle (FIFO)
+    // Removes and returns the front vehicle
     bool dequeue(Vehicle& vehicle) {
         std::lock_guard<std::mutex> lock(queueMutex);
         if (queue.empty()) {
@@ -63,14 +64,13 @@ public:
         return true;
     }
 
-    // Dequeue a vehicle from a specific lane (for priority handling)
+    // Special dequeue for priority handling (specific lane)
     bool dequeueFromLane(int lane, Vehicle& vehicle) {
         std::lock_guard<std::mutex> lock(queueMutex);
         if (queue.empty()) {
             return false;
         }
         
-        // Try to find a vehicle from the specified lane
         std::queue<Vehicle> tempQueue;
         bool found = false;
         
@@ -85,12 +85,11 @@ public:
             }
         }
         
-        // Restore queue
         queue = tempQueue;
         return found;
     }
 
-    // Count vehicles in a specific lane
+    // Counts how many vehicles are in a specific lane
     int countLaneVehicles(int lane) {
         std::lock_guard<std::mutex> lock(queueMutex);
         int count = 0;
@@ -104,36 +103,32 @@ public:
         return count;
     }
 
-    // Check if queue is empty
     bool isEmpty() {
         std::lock_guard<std::mutex> lock(queueMutex);
         return queue.empty();
     }
 
-    // Get queue size
     int size() {
         std::lock_guard<std::mutex> lock(queueMutex);
         return queue.size();
     }
 
-    // Get road ID
     int getRoadId() const {
         return roadId;
     }
 
-    // Get total vehicle count for this road
     int getVehicleCount() const {
         return vehicleCount;
     }
 };
 
-// Global vehicle queues for each road (A, B, C, D)
+// One queue for each of the 4 roads
 VehicleQueue roadAQueue(0);  
 VehicleQueue roadBQueue(1);  
 VehicleQueue roadCQueue(2);  
 VehicleQueue roadDQueue(3);  
 
-// Get the appropriate queue for a given lane
+// Maps a lane number to the corresponding road queue
 VehicleQueue* getQueueForLane(int lane) {
     if (lane >= 1 && lane <= 3) return &roadAQueue;   
     if (lane >= 4 && lane <= 6) return &roadBQueue;   
@@ -142,7 +137,7 @@ VehicleQueue* getQueueForLane(int lane) {
     return nullptr;
 }
 
-// Get road identifier from lane
+// Helper to determine road index from lane number
 int getRoadFromLane(int lane) {
     if (lane >= 1 && lane <= 3) return 0;   
     if (lane >= 4 && lane <= 6) return 1;   
@@ -151,14 +146,14 @@ int getRoadFromLane(int lane) {
     return -1;
 }
 
-// Generate a random lane number (1-12)
+// Randomly selects a valid lane for traffic generation
 int generateLane() {
     static const int validLanes[] = {2, 3, 4, 5, 8, 9, 10, 11};
     int index = std::rand() % 8;
     return validLanes[index];
 }
 
-// Generate a vehicle and add it to the appropriate queue
+// Creates a vehicle and places it in the correct queue
 void generateVehicle() {
     int lane = generateLane();
     int road = getRoadFromLane(lane);
@@ -186,14 +181,14 @@ void generateVehicle() {
     }
 }
 
-// Global flag to track if we're in priority mode for AL2
 static bool priorityModeActive = false;
 
-// Function to process queues and send vehicles to simulator
+// Logic to decide which vehicle to send to the simulator next
 void processQueuesAndSend(SOCKET sock) {
     
     int al2Count = roadAQueue.countLaneVehicles(2); 
     
+    // Priority Logic: If Lane 2 is backed up, prioritize it
     if (al2Count > 10) {
         priorityModeActive = true;
     } else if (al2Count < 5) {
@@ -217,6 +212,7 @@ void processQueuesAndSend(SOCKET sock) {
         }
     }
     
+    // Default Round-Robin logic for other lanes
     VehicleQueue* queues[] = {&roadAQueue, &roadBQueue, &roadCQueue, &roadDQueue};
     
     for (int i = 0; i < 4; i++) {
@@ -251,6 +247,7 @@ int main()
   }
 #endif
 
+  // Establish socket connection to the Simulator
   SOCKET sock = -1;
   struct sockaddr_in server_address;
 
@@ -283,8 +280,8 @@ int main()
 
   std::srand((unsigned int)std::time(NULL));
 
-  // Ask for traffic generation speed (1-10)
-  int speedLevel = 5; // Default
+  // User control for traffic density
+  int speedLevel = 5; 
   std::cout << "Enter traffic speed (1-10, where 10 is fastest): ";
   if (std::cin >> speedLevel) {
       if (speedLevel < 1) speedLevel = 1;
@@ -292,33 +289,32 @@ int main()
   } else {
       std::cin.clear();
       std::cin.ignore(10000, '\n'); 
-      // Keep default
   }
   std::cout << "Traffic Speed set to: " << speedLevel << "/10" << std::endl;
 
+  // Calculate delay based on speed level
   auto getTrafficDelay = [speedLevel]() -> int {
-     
-      int minDelayBase = 2000 - (speedLevel - 1) * 200; // 1->2000, 10->200
+      int minDelayBase = 2000 - (speedLevel - 1) * 200; 
       if (minDelayBase < 100) minDelayBase = 100;
       
-      int randomRange = 1000 - (speedLevel - 1) * 100; // 1->1000, 10->100
+      int randomRange = 1000 - (speedLevel - 1) * 100; 
       if (randomRange < 50) randomRange = 50;
       
       return minDelayBase + std::rand() % randomRange;
   };
 
+  // Background thread to continuously generate vehicles
   std::thread generatorThread([&]() {
     while (true) {
       generateVehicle();
-      // Moderate generation speed: 500ms to 1500ms
       int delay = getTrafficDelay();
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     }
   });
 
+  // Main loop to process queues and send data
   while (true) {
     processQueuesAndSend(sock);
-    // Faster processing: 200ms to 500ms
     std::this_thread::sleep_for(std::chrono::milliseconds(200 + std::rand() % 300));
   }
 
@@ -329,5 +325,3 @@ int main()
 #endif
   return 0;
 }
-
-
