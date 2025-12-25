@@ -44,3 +44,10 @@ Open a **new, separate terminal window** (keep the first one running!). navigate
 ## Project Structure
 - `src/Simulator.cpp`: Handles graphics, animation, and traffic light logic.
 - `src/TrafficGenerator.cpp`: Handles vehicle creation and queue management.
+
+## Preview
+![traffic-simulator](https://github.com/user-attachments/assets/d95cba5b-e39d-4ad2-956d-c98691bb3cb0)
+
+
+
+
